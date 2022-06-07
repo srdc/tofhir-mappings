@@ -1,0 +1,66 @@
+{
+  "url": "https://aiccelerate.eu/fhir/mappings/omop/specimen-mapping",
+  "name": "specimen-mapping",
+  "title": "Mapping of omop specimen to AIC-Specimen FHIR profile",
+  "source": [
+    {
+      "alias": "source",
+      "url": "https://some-url-for-metadata-purposes"
+    }
+  ],
+  "mapping": [
+    {
+      "expression": {
+        "name": "result",
+        "language": "application/fhir-template+json",
+        "value": {
+          "resourceType": "Specimen",
+          "id": "{{mpp:getHashedId('Specimen', specimen_id.toString())}}",
+          "meta": {
+            "profile": [
+              "https://aiccelerate.eu/fhir/StructureDefinition/AIC-Specimen"
+            ],
+            "source": "{{%sourceSystem.sourceUri}}"
+          },
+          "identifier": [
+            {
+              "use": "official",
+              "system": "{{%sourceSystem.sourceUri}}",
+              "value": "{{specimen_id.toString()}}"
+            }
+          ],
+          "subject": "{{? mpp:createFhirReferenceWithHashedId('Patient', person_id.toString())}}",
+          "type":
+            {
+              "coding": [
+                {
+                  "code": "{{concept_code}}",
+                  "system": "{{vocabulary_id}}",
+                  "display": "{{concept_name}}"
+                }
+              ]
+            },
+          "collection":
+          {
+            "collectedDateTime": "{{? specimen_date.utl:toFhirDateTime()}}",
+            "quantity": {
+              "value": "{{? quantity}}",
+              "unit": "{{? unit_code}}",
+              "system": "{{? unit_system}}"
+            },
+            "bodySite": {
+              "coding": [
+                {
+                  "code": "{{? body_site_code}}",
+                  "system": "{{? body_site_vocab_id}}",
+                  "display": "{{? body_site_name}}"
+                }
+              ]
+            }
+          }
+
+        }
+      }
+    }
+  ]
+}
