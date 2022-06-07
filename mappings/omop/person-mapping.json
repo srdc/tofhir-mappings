@@ -1,0 +1,69 @@
+{
+  "url": "https://aiccelerate.eu/fhir/mappings/omop/person-mapping",
+  "name": "person-mapping",
+  "title": "Mapping of omop person to AIC-Patient FHIR profile",
+  "source": [{
+    "alias": "source",
+    "url": "https://some-url-for-metadata-purposes"
+  }],
+  "mapping": [
+    {
+      "expression": {
+        "name": "result",
+        "language": "application/fhir-template+json",
+        "value": {
+          "resourceType": "Patient",
+          "id": "{{mpp:getHashedId('Patient',person_id.toString())}}",
+          "meta": {
+            "profile": ["https://aiccelerate.eu/fhir/StructureDefinition/AIC-Patient"],
+            "source": "{{%sourceSystem.sourceUri}}"
+          },
+          "active": true,
+          "identifier": [
+            {
+              "use": "official",
+              "system": "{{%sourceSystem.sourceUri}}",
+              "value": "{{person_id.toString()}}"
+            }
+          ],
+          "generalPractitioner": [
+            "{{? mpp:createFhirReferenceWithHashedId('Practitioner', provider_id.toString())}}"
+          ],
+          "managingOrganization": "{{? mpp:createFhirReferenceWithHashedId('Organization', care_site_id.toString())}}",
+          "gender": "{{iif(gender_concept_id=8532, 'female', iif(gender_concept_id=8507, 'male', 'unknown'))}}",
+          "birthDate": "{{iif(birthDate.empty(), birth_datetime.utl:toFhirDateTime(), birthDate)}}",
+          "address": [{
+            "line": ["{{? address_1}}", "{{? address_2}}"],
+            "city": "{{? city}}",
+            "state": "{{? state}}",
+            "postalCode": "{{? zip}}"
+          }],
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
+              "ombCategory": {
+                "url": "ombCategory",
+                "value": "{{? utl:createFhirCodeableConcept(race_vocab_id, race_code, race_name)}}"
+              },
+              "text": {
+                "url": "text",
+                "value": "{{race_name}}"
+              }
+            },
+            {
+              "url": "http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity",
+              "ombCategory": {
+                "url": "ombCategory",
+                "value": "{{? utl:createFhirCodeableConcept(ethnicity_vocab_id, ethnicity_concept_code, ethnicity_concept_name)}}"
+              },
+              "text": {
+                "url": "text",
+                "value": "{{ethnicity_concept_name}}"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "url": "https://aiccelerate.eu/fhir/mappings/omop/visit-occurrence-mapping",
+  "name": "visit-occurrence-mapping",
+  "title": "Mapping of omop visit-occurrence to AIC-Encounter FHIR profile",
+  "source": [{
+      "alias": "source",
+    "url": "https://some-url-for-metadata-purposes"
+    }],
+  "mapping": [
+    {
+      "expression": {
+        "name": "result",
+        "language": "application/fhir-template+json",
+        "value": {
+          "resourceType": "Encounter",
+          "id": "{{mpp:getHashedId('Encounter', visit_occurrence_id.toString())}}",
+          "meta": {
+            "profile": [
+              "https://aiccelerate.eu/fhir/StructureDefinition/AIC-Encounter"
+            ],
+            "source": "{{%sourceSystem.sourceUri}}"
+          },
+          "status": "finished",
+          "identifier": [
+            {
+              "use": "official",
+              "system": "{{%sourceSystem.sourceUri}}",
+              "value": "{{visit_occurrence_id.toString()}}"
+            }
+          ],
+          "class": {
+            "code": "261665006",
+            "system": "http://snomed.info/sct",
+            "display": "unknown"
+          },
+          "partOf": "{{? mpp:createFhirReferenceWithHashedId('Encounter', preceding_visit_occurrence.toString())}}",
+          "subject": "{{? mpp:createFhirReferenceWithHashedId('Patient', person_id.toString())}}",
+          "type": [{
+              "coding": [
+                {
+                  "code": "{{? concept_code}}",
+                  "system": "{{? vocabulary_id}}",
+                  "display": "{{? concept_name}}"
+                }
+              ]
+          }],
+          "period": {
+            "start": "{{? iif(visit_start_datetime.empty(), visit_start_date, visit_start_datetime.utl:toFhirDateTime()}}",
+            "end": "{{? iif(visit_end_datetime.empty(), visit_end_date, visit_end_datetime.utl:toFhirDateTime()}}"
+          },
+          "participant": [
+            {
+              "individual": "{{? mpp:createFhirReferenceWithHashedId('Practitioner', provider_id.toString())}}"
+            }
+          ],
+          "extension": [
+            {
+              "url": "http://hl7.org/fhir/us/cdmh/ValueSet/pcornet-admitting-source-facility-type",
+              "value": "{{? utl:createFhirCodeableConcept('http://hl7.org/fhir/us/cdmh/CodeSystem/pcornet-admitting-source-facility-type-codes', admitted_from_concept_code, admitted_from_concept_name)}}"
+            },
+            {
+              "url": "http://hl7.org/fhir/us/cdmh/ValueSet/pcornet-discharge-status",
+              "value": "{{? utl:createFhirCodeableConcept('http://hl7.org/fhir/us/cdmh/CodeSystem/pcornet-discharge-status-codes', discharged_to_concept_code, discharged_to_concept_name)}}"
+            },
+            {
+              "url": "http://hl7.org/fhir/us/cdmh/StructureDefinition/cdmh-pcornet-diagnosis-origin",
+              "value": "{{? utl:createFhirCodeableConcept('http://hl7.org/fhir/us/cdmh/CodeSystem/pcornet-information-source-hc-subtypes', v_type_concept_code, v_type_concept_name)}}"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
