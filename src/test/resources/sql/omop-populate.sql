@@ -513,7 +513,7 @@ INSERT INTO measurement
  measurement_type_concept_id, operator_concept_id, value_as_number, value_as_concept_id, unit_concept_id, range_low,
  range_high, provider_id, visit_occurrence_id, visit_detail_id, measurement_source_value, measurement_source_concept_id,
  unit_source_value, unit_source_concept_id, value_source_value, measurement_event_id, meas_event_field_concept_id)
-VALUES (1, 1, 40793114, '2002-01-30', '2002-10-13 15:59:56.523', NULL, 1, 1, 1, 1, 45757035, 1.0, 9.0, 1, 1, 1, NULL,
+VALUES (1, 1, 40793114, '2002-01-30', TO_TIMESTAMP('2002-10-13T15:59:00+03:00', 'YYYY-MM-DDTHH24:MI:SS+TZH:TZM'), NULL, 1, 1, 1, 1, 45757035, 1.0, 9.0, 1, 1, 1, NULL,
         NULL, NULL, NULL, NULL, NULL, NULL);
 
 INSERT INTO drug_exposure

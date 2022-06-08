@@ -15,6 +15,7 @@ import org.scalatest.BeforeAndAfterAll
 
 import java.nio.file.Paths
 import java.sql.{Connection, DriverManager, Statement}
+import java.time.OffsetDateTime
 import java.util.concurrent.TimeUnit
 import scala.concurrent.Await
 import scala.concurrent.duration.FiniteDuration
@@ -319,7 +320,7 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
       val conditionOccurrence = results.head
       FHIRUtil.extractResourceType(conditionOccurrence) shouldBe "Condition"
       (conditionOccurrence \ "subject" \ "reference").extract[String] shouldBe FhirMappingUtility.getHashedReference("Patient","1")
-      (conditionOccurrence \ "onsetDateTime").extract[String] shouldBe "2010-03-12T07:00:00+02:00"
+      OffsetDateTime.parse((conditionOccurrence \ "onsetDateTime").extract[String]).toInstant shouldBe OffsetDateTime.parse("2010-03-12T05:00:00Z").toInstant
       (conditionOccurrence \ "abatementDateTime").extract[String] shouldBe "2010-03-23"
     }
   }
@@ -381,7 +382,7 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
         results.size shouldBe 5
         val observation = results.head
         FHIRUtil.extractResourceType(observation) shouldBe "Observation"
-        (observation \ "effectiveDateTime").extract[String] shouldBe "2009-11-17T07:00:00+02:00"
+        OffsetDateTime.parse((observation \ "effectiveDateTime").extract[String]).toInstant shouldBe OffsetDateTime.parse("2009-11-17T05:00:00Z").toInstant
         (observation \ "subject" \ "reference").extract[String] shouldBe FhirMappingUtility.getHashedReference("Patient", "3")
         (observation \ "encounter" \ "reference").extract[String] shouldBe FhirMappingUtility.getHashedReference("Encounter", "29804754")
       }
@@ -402,7 +403,7 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
       results.size shouldBe 1
       val observation = results.head
       FHIRUtil.extractResourceType(observation) shouldBe "Observation"
-      (observation \ "effectiveDateTime").extract[String] shouldBe "2002-10-13T15:59:56+03:00"
+      OffsetDateTime.parse((observation \ "effectiveDateTime").extract[String]).toInstant shouldBe OffsetDateTime.parse("2002-10-13T12:59:00Z").toInstant
       (observation \ "subject" \ "reference").extract[String] shouldBe FhirMappingUtility.getHashedReference("Patient", "1")
       (observation \ "encounter" \ "reference").extract[String] shouldBe FhirMappingUtility.getHashedReference("Encounter", "1")
     }
@@ -443,7 +444,7 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
       results.size shouldBe 5
       val death = results.head
       FHIRUtil.extractResourceType(death) shouldBe "AdverseEvent"
-      (death \ "date").extract[String] shouldBe "2010-12-01T07:00:00+02:00"
+      OffsetDateTime.parse((death \ "date").extract[String]).toInstant shouldBe OffsetDateTime.parse("2010-12-01T05:00:00Z").toInstant
       (death \ "subject" \ "reference").extract[String] shouldBe FhirMappingUtility.getHashedReference("Patient", "1")
     }
   }
