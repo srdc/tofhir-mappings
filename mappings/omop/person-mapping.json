@@ -31,7 +31,7 @@
           ],
           "managingOrganization": "{{? mpp:createFhirReferenceWithHashedId('Organization', care_site_id.toString())}}",
           "gender": "{{iif(gender_concept_id=8532, 'female', iif(gender_concept_id=8507, 'male', 'unknown'))}}",
-          "birthDate": "{{iif(birthDate.empty(), birth_datetime.utl:toFhirDateTime(), birthDate)}}",
+          "birthDate": "{{iif(birthdate.empty(), birth_datetime.utl:toFhirDateTime(), birthdate)}}",
           "address": [{
             "line": ["{{? address_1}}", "{{? address_2}}"],
             "city": "{{? city}}",

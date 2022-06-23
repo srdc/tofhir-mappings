@@ -29,8 +29,8 @@
             }
           ],
           "class": {
-            "code": "261665006",
-            "system": "http://snomed.info/sct",
+            "code": "AMB",
+            "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
             "display": "unknown"
           },
           "partOf": "{{? mpp:createFhirReferenceWithHashedId('Encounter', preceding_visit_occurrence.toString())}}",

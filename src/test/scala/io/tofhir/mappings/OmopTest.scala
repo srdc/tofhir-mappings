@@ -99,7 +99,7 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
     mappingRef = "https://aiccelerate.eu/fhir/mappings/omop/person-mapping",
     sourceContext = Map("source" -> SqlSource(
       query = Some("select p.person_id, p.gender_concept_id, p.provider_id, p.care_site_id, " +
-        "FORMATDATETIME(CONCAT(p.year_of_birth, '-', p.month_of_birth, '-', p.day_of_birth), 'yyyy-MM-dd') as birthDate, " +
+        "FORMATDATETIME(CONCAT(p.year_of_birth, '-', p.month_of_birth, '-', p.day_of_birth), 'yyyy-MM-dd') as birthdate, " +
         "p.birth_datetime,  l.address_1, l.address_2, l.city, l.state, l.zip, " +
         "c.concept_code as race_code, c.vocabulary_id as race_vocab_id, c.concept_name as race_name, " +
         "c2.concept_code as ethnicity_concept_code, c2.vocabulary_id as ethnicity_vocab_id, c2.concept_name as ethnicity_concept_name " +
