@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="CDA.xsl"?>
+<ClinicalDocument xmlns="urn:hl7-org:v3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:voc="urn:hl7-org:v3/voc" xmlns:sdtc="urn:hl7-org:sdtc">
+    <!-- Version of this document -->
+    <versionNumber value="1"/>
+    <recordTarget>
+        <patientRole>
+            <id extension="444222222" root="2.16.840.1.113883.4.1"/>
+            <!-- Example Social Security Number using the actual SSN OID. -->
+            <addr use="non">
+                <!-- HP is "primary home" from codeSystem 2.16.840.1.113883.5.1119 -->
+                <streetAddressLine>2222 Home Street</streetAddressLine>
+                <city>Beaverton</city>
+                <state>OR</state>
+                <postalCode>97867</postalCode>
+                <country>US</country>
+                <!-- US is "United States" from ISO 3166-1 Country Codes: 1.0.3166.1 -->
+            </addr>
+            <telecom value="tel:+1(555)555-2003" use="HP"/>
+            <!-- HP is "primary home" from HL7 AddressUse 2.16.840.1.113883.5.1119 -->
+            <patient>
+                <name use="L">
+                    <given>Eve</given>
+                    <!-- The "SP" is "Spouse" from HL7 Code System EntityNamePartQualifier 2.16.840.1.113883.5.43 -->
+                    <family qualifier="SP">Betterhalf</family>
+                </name>
+                <administrativeGenderCode code="F" displayName="Female" codeSystem="2.16.840.1.113883.5.1" codeSystemName="AdministrativeGender"/>
+                <!-- Date of birth need only be precise to the day -->
+                <birthTime value="19750501"/>
+            </patient>
+        </patientRole>
+    </recordTarget>
+</ClinicalDocument>

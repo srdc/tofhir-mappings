@@ -1,0 +1,45 @@
+{
+    "url": "https://aiccelerate.eu/fhir/mappings/deneme/sample-mapping",
+    "name": "sample-mapping",
+    "title": "Mapping of condition schema for pilot-3 p3 (HSJD) to AIC-Condition FHIR profile",
+    "source": [{
+      "alias": "source",
+      "url": "https://aiccelerate.eu/fhir/StructureDefinition/samplep"
+    }],
+    "mapping": [
+      {
+        "expression": {
+          "name": "result",
+          "language": "application/fhir-template+json",
+          "value": {
+            "resourceType": "Patient",
+            "id": "{{mpp:getHashedId('Patient',recordTarget.patientRole.id.`@root`)}}",
+            "meta": {
+              "profile": [
+                "https://aiccelerate.eu/fhir/StructureDefinition/AIC-Patient"
+              ],
+              "source": "{{%sourceSystem.sourceUri}}"
+            },
+            "active": true,
+            "identifier": [
+              {
+                "use": "official",
+                "system": "{{%sourceSystem.sourceUri}}",
+                "value": "{{? recordTarget.patientRole.patient.name.given}}"
+              }
+            ],
+            "gender": "{{ iif ((recordTarget.patientRole.patient.administrativeGenderCode.`@code`) == 'M', 'male', 'female' ) }}",
+            "birthDate": "{{(recordTarget.patientRole.patient.birthTime.`@value`).toString().substring(0,4).toString() + '-' + (recordTarget.patientRole.patient.birthTime.`@value`).toString().substring(4,2).toString() + '-' + (recordTarget.patientRole.patient.birthTime.`@value`).toString().substring(6,2).toString()}}",
+            "address": [
+              {
+                "use": "{{? iif ((recordTarget.patientRole.addr.`@use`) == 'HP', 'home', 'temp')) }}",
+                "type": "both",
+                "postalCode": "{{? recordTarget.patientRole.addr.postalCode.toString()}}",
+                "country": "{{? recordTarget.patientRole.addr.country.toString()}}"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }

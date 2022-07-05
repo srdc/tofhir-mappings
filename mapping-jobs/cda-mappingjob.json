@@ -1,0 +1,22 @@
+{
+    "id": "deneme-mapping-job",
+    "sourceSettings": {
+      "jsonClass": "FileSystemSourceSettings",
+      "name": "deneme-source",
+      "sourceUri": "https://aiccelerate.eu/data-integration-suite/deneme-data",
+      "dataFolderPath": "test-data/deneme"
+    },
+    "sinkSettings": {
+      "jsonClass": "FhirRepositorySinkSettings",
+      "fhirRepoUrl": "http://localhost:8081/fhir",
+      "writeErrorHandling": "continue"
+    },
+    "mappingErrorHandling": "continue",
+    "mappings": [
+      {
+        "jsonClass": "FileSourceMappingDefinition",
+        "mappingRef": "https://aiccelerate.eu/fhir/mappings/deneme/sample-mapping",
+        "filePath": "sample2.xml"
+      }
+    ]
+  }
