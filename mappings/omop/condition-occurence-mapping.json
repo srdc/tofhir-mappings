@@ -1,4 +1,5 @@
 {
+  "id": "condition-occurrence-mapping",
   "url": "https://aiccelerate.eu/fhir/mappings/omop/condition-occurrence-mapping",
   "name": "condition-occurrence-mapping",
   "title": "Mapping of omop condition-occurrence to AIC-Condition FHIR profile",

@@ -1,4 +1,5 @@
 {
+  "id": "death-mapping",
   "url": "https://aiccelerate.eu/fhir/mappings/omop/death-mapping",
   "name": "death-mapping",
   "title": "Mapping of omop death to AIC-AdverseEvent FHIR profile",
@@ -25,7 +26,7 @@
             "value": "{{person_id.toString() & ' ' & death_date.toString()}}"
           },
           "subject": "{{? mpp:createFhirReferenceWithHashedId('Patient', person_id.toString())}}",
-          "date": "{{? iif(death_datetime.empty(), death_date.utl:toFhirDateTime(), death_datetime.utl:toFhirDateTime())}}",
+          "date": "{{? iif(death_datetime.empty(), death_date.utl:toFhirDate('yyyy-MM-dd'), death_datetime.utl:toFhirDateTime())}}",
           "extension": [
             {
               "url": "http://hl7.org/fhir/us/cdmh/StructureDefinition/cdmh-pcornet-death-cause-source",

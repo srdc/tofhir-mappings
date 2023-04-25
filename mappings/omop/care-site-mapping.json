@@ -1,4 +1,5 @@
 {
+  "id": "care-site-mapping",
   "url": "https://aiccelerate.eu/fhir/mappings/omop/care-site-mapping",
   "name": "care-site-mapping",
   "title": "Mapping of omop care-site to AIC-Organization FHIR profile",

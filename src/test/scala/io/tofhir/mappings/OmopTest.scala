@@ -1,15 +1,16 @@
 package io.tofhir.mappings
 
-import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import com.typesafe.scalalogging.Logger
+import io.onfhir.api.Resource
 import io.onfhir.api.util.FHIRUtil
 import io.onfhir.client.OnFhirNetworkClient
-import io.onfhir.tofhir.config.MappingErrorHandling
-import io.onfhir.tofhir.engine._
-import io.onfhir.tofhir.model.{FhirMappingTask, FhirRepositorySinkSettings, SqlSource, SqlSourceSettings}
-import io.onfhir.tofhir.util.FhirMappingUtility
 import io.onfhir.util.JsonFormatter.formats
+import io.tofhir.engine.config.ErrorHandlingType
+import io.onfhir.util.JsonFormatter._
+import io.tofhir.engine.mapping.{FhirMappingFolderRepository, FhirMappingJobManager, IFhirMappingRepository, IFhirSchemaLoader, IMappingContextLoader, MappingContextLoader, SchemaFolderLoader}
+import io.tofhir.engine.model.{FhirMappingJobExecution, FhirMappingTask, FhirRepositorySinkSettings, SqlSource, SqlSourceSettings}
+import io.tofhir.engine.util.FhirMappingUtility
 import org.json4s.JsonAST.JObject
 import org.scalatest.BeforeAndAfterAll
 
@@ -56,25 +57,22 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
     }
   }
 
-  val mappingRepository: IFhirMappingRepository = new FhirMappingFolderRepository(Paths.get("mappings/omop").toAbsolutePath.toUri)
+  val mappingRepository: IFhirMappingRepository =
+    new FhirMappingFolderRepository(Paths.get("mappings/omop").toAbsolutePath.toUri)
 
   val contextLoader: IMappingContextLoader = new MappingContextLoader(mappingRepository)
 
-  val schemaRepository = new SchemaFolderRepository(Paths.get("schemas").toAbsolutePath.toUri)
+  val schemaLoader: IFhirSchemaLoader = new SchemaFolderLoader(Paths.get("schemas").toAbsolutePath.toUri)
 
-  val sqlSourceSettings =
-    Map(
-      "source" ->
-        SqlSourceSettings(name = "test-db-source", sourceUri = "https://www.ohdsi.org/data-standardization/the-common-data-model", databaseUrl = DATABASE_URL, username = "", password = "")
-    )
+  val sqlSourceSettings = Map("source" -> SqlSourceSettings(name = "test-db-source", sourceUri = "https://www.ohdsi.org/data-standardization/the-common-data-model", databaseUrl = DATABASE_URL, username = "", password = ""))
 
-  val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
+  val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaLoader, sparkSession, mappingErrorHandling)
 
-  val fhirSinkSetting: FhirRepositorySinkSettings = FhirRepositorySinkSettings(fhirRepoUrl = "http://localhost:8081/fhir", writeErrorHandling = MappingErrorHandling.CONTINUE)
-  implicit val actorSystem: ActorSystem = ActorSystem("OmopTest")
-  val onFhirClient: OnFhirNetworkClient = OnFhirNetworkClient.apply(fhirSinkSetting.fhirRepoUrl)
+  val fhirSinkSetting: FhirRepositorySinkSettings = FhirRepositorySinkSettings(fhirRepoUrl = sys.env.getOrElse("FHIR_REPO_URL", "http://localhost:8081/fhir"), errorHandling = Some(fhirWriteErrorHandling))
 
-  val fhirServerIsAvailable: Boolean =
+  val onFhirClient = OnFhirNetworkClient.apply(fhirSinkSetting.fhirRepoUrl)
+
+  val fhirServerIsAvailable =
     Try(Await.result(onFhirClient.search("Patient").execute(), FiniteDuration(5, TimeUnit.SECONDS)).httpStatus == StatusCodes.OK)
       .getOrElse(false)
 
@@ -209,8 +207,13 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
 
 
   "Care site mapping" should "should read data from SQL source and map it" in {
-      val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
-      fhirMappingJobManager.executeMappingTaskAndReturn(task = careSiteMappingTask, sourceSettings = sqlSourceSettings) map { results =>
+      fhirMappingJobManager.executeMappingTaskAndReturn(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(careSiteMappingTask)), sourceSettings = sqlSourceSettings) map { mappingResults =>
+        val results = mappingResults.map(r => {
+          r.mappedResource shouldBe defined
+          val resource = r.mappedResource.get.parseJson
+          resource shouldBe a[Resource]
+          resource
+        })
         results.size shouldBe 2
         val organization1 = results.head
         FHIRUtil.extractResourceType(organization1) shouldBe "Organization"
@@ -224,15 +227,20 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
     //Send it to our fhir repo if they are also validated
     assume(fhirServerIsAvailable)
     fhirMappingJobManager
-      .executeMappingJob(tasks = Seq(careSiteMappingTask), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
+      .executeMappingJob(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(careSiteMappingTask)), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
       .map(unit =>
         unit shouldBe()
       )
   }
 
   "Location mapping" should "should read data from SQL source and map it" in {
-    val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
-    fhirMappingJobManager.executeMappingTaskAndReturn(task = locationMappingTask, sourceSettings = sqlSourceSettings) map { results =>
+    fhirMappingJobManager.executeMappingTaskAndReturn(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(locationMappingTask)), sourceSettings = sqlSourceSettings) map { mappingResults =>
+      val results = mappingResults.map(r => {
+        r.mappedResource shouldBe defined
+        val resource = r.mappedResource.get.parseJson
+        resource shouldBe a[Resource]
+        resource
+      })
       results.size shouldBe 5
       val location = results.head
       FHIRUtil.extractResourceType(location) shouldBe "Location"
@@ -244,15 +252,20 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
   it should "map test data and write it to FHIR repo successfully" in {
     assume(fhirServerIsAvailable)
     fhirMappingJobManager
-      .executeMappingJob(tasks = Seq(locationMappingTask), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
+      .executeMappingJob(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(locationMappingTask)), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
       .map(unit =>
         unit shouldBe()
       )
   }
 
   "Procedure occurrence mapping" should "should read data from SQL source and map it" in {
-    val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
-    fhirMappingJobManager.executeMappingTaskAndReturn(task = procedureOccurrenceMappingTask, sourceSettings = sqlSourceSettings) map { results =>
+    fhirMappingJobManager.executeMappingTaskAndReturn(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(procedureOccurrenceMappingTask)), sourceSettings = sqlSourceSettings) map { mappingResults =>
+      val results = mappingResults.map(r => {
+        r.mappedResource shouldBe defined
+        val resource = r.mappedResource.get.parseJson
+        resource shouldBe a[Resource]
+        resource
+      })
       results.size shouldBe 5
       val procedureOccurrence = results.head
       FHIRUtil.extractResourceType(procedureOccurrence) shouldBe "Procedure"
@@ -266,15 +279,20 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
   it should "map test data and write it to FHIR repo successfully" in {
     assume(fhirServerIsAvailable)
     fhirMappingJobManager
-      .executeMappingJob(tasks = Seq(procedureOccurrenceMappingTask), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
+      .executeMappingJob(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(procedureOccurrenceMappingTask)), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
       .map(unit =>
         unit shouldBe()
       )
   }
 
   "Person mapping" should "should read data from SQL source and map it" in {
-    val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
-    fhirMappingJobManager.executeMappingTaskAndReturn(task = personMappingTask, sourceSettings = sqlSourceSettings) map { results =>
+    fhirMappingJobManager.executeMappingTaskAndReturn(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(personMappingTask)), sourceSettings = sqlSourceSettings) map { mappingResults =>
+      val results = mappingResults.map(r => {
+        r.mappedResource shouldBe defined
+        val resource = r.mappedResource.get.parseJson
+        resource shouldBe a[Resource]
+        resource
+      })
       results.size shouldBe 5
       val patient = results.head
       FHIRUtil.extractResourceType(patient) shouldBe "Patient"
@@ -287,15 +305,20 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
   it should "map test data and write it to FHIR repo successfully" in {
     assume(fhirServerIsAvailable)
     fhirMappingJobManager
-      .executeMappingJob(tasks = Seq(personMappingTask), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
+      .executeMappingJob(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(personMappingTask)), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
       .map(unit =>
         unit shouldBe()
       )
   }
 
   "Visit occurrence mapping" should "should read data from SQL source and map it" in {
-    val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
-    fhirMappingJobManager.executeMappingTaskAndReturn(task = visitOccurrenceMappingTask, sourceSettings = sqlSourceSettings) map { results =>
+    fhirMappingJobManager.executeMappingTaskAndReturn(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(visitOccurrenceMappingTask)), sourceSettings = sqlSourceSettings) map { mappingResults =>
+      val results = mappingResults.map(r => {
+        r.mappedResource shouldBe defined
+        val resource = r.mappedResource.get.parseJson
+        resource shouldBe a[Resource]
+        resource
+      })
       results.size shouldBe 5
       val visitOccurrence = results.head
       FHIRUtil.extractResourceType(visitOccurrence) shouldBe "Encounter"
@@ -310,15 +333,20 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
   it should "map test data and write it to FHIR repo successfully" in {
     assume(fhirServerIsAvailable)
     fhirMappingJobManager
-      .executeMappingJob(tasks = Seq(visitOccurrenceMappingTask), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
+      .executeMappingJob(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(visitOccurrenceMappingTask)), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
       .map(unit =>
         unit shouldBe()
       )
   }
 
   "Condition occurrence mapping" should "should read data from SQL source and map it" in {
-    val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
-    fhirMappingJobManager.executeMappingTaskAndReturn(task =  conditionOccurrenceMappingTask, sourceSettings = sqlSourceSettings) map { results =>
+    fhirMappingJobManager.executeMappingTaskAndReturn(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(conditionOccurrenceMappingTask)), sourceSettings = sqlSourceSettings) map { mappingResults =>
+      val results = mappingResults.map(r => {
+        r.mappedResource shouldBe defined
+        val resource = r.mappedResource.get.parseJson
+        resource shouldBe a[Resource]
+        resource
+      })
       results.size shouldBe 5
       val conditionOccurrence = results.head
       FHIRUtil.extractResourceType(conditionOccurrence) shouldBe "Condition"
@@ -331,15 +359,20 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
   it should "map test data and write it to FHIR repo successfully" in {
     assume(fhirServerIsAvailable)
     fhirMappingJobManager
-      .executeMappingJob(tasks = Seq(conditionOccurrenceMappingTask), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
+      .executeMappingJob(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(conditionOccurrenceMappingTask)), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
       .map(unit =>
         unit shouldBe()
       )
   }
 
   "Device exposure mapping" should "should read data from SQL source and map it" in {
-    val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
-    fhirMappingJobManager.executeMappingTaskAndReturn(task = deviceExposureMappingTask, sourceSettings = sqlSourceSettings) map { results =>
+    fhirMappingJobManager.executeMappingTaskAndReturn(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(deviceExposureMappingTask)), sourceSettings = sqlSourceSettings) map { mappingResults =>
+      val results = mappingResults.map(r => {
+        r.mappedResource shouldBe defined
+        val resource = r.mappedResource.get.parseJson
+        resource shouldBe a[Resource]
+        resource
+      })
       results.size shouldBe 10
       val deviceExposure = results.head
       FHIRUtil.extractResourceType(deviceExposure) shouldBe "DeviceUseStatement"
@@ -353,15 +386,20 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
   it should "map test data and write it to FHIR repo successfully" in {
     assume(fhirServerIsAvailable)
     fhirMappingJobManager
-      .executeMappingJob(tasks = Seq(deviceExposureMappingTask), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
+      .executeMappingJob(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(deviceExposureMappingTask)), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
       .map(unit =>
         unit shouldBe()
       )
   }
 
   "Specimen mapping" should "should read data from SQL source and map it" in {
-    val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
-    fhirMappingJobManager.executeMappingTaskAndReturn(task = specimenMappingTask, sourceSettings = sqlSourceSettings) map { results =>
+    fhirMappingJobManager.executeMappingTaskAndReturn(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(specimenMappingTask)), sourceSettings = sqlSourceSettings) map { mappingResults =>
+      val results = mappingResults.map(r => {
+        r.mappedResource shouldBe defined
+        val resource = r.mappedResource.get.parseJson
+        resource shouldBe a[Resource]
+        resource
+      })
       results.size shouldBe 1
       val specimen = results.head
       FHIRUtil.extractResourceType(specimen) shouldBe "Specimen"
@@ -373,15 +411,20 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
   it should "map test data and write it to FHIR repo successfully" in {
     assume(fhirServerIsAvailable)
     fhirMappingJobManager
-      .executeMappingJob(tasks = Seq(specimenMappingTask), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
+      .executeMappingJob(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(specimenMappingTask)), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
       .map(unit =>
         unit shouldBe()
       )
   }
 
     "Observation mapping" should "should read data from SQL source and map it" in {
-      val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
-      fhirMappingJobManager.executeMappingTaskAndReturn(task = observationMappingTask, sourceSettings = sqlSourceSettings) map { results =>
+      fhirMappingJobManager.executeMappingTaskAndReturn(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(observationMappingTask)), sourceSettings = sqlSourceSettings) map { mappingResults =>
+        val results = mappingResults.map(r => {
+          r.mappedResource shouldBe defined
+          val resource = r.mappedResource.get.parseJson
+          resource shouldBe a[Resource]
+          resource
+        })
         results.size shouldBe 5
         val observation = results.head
         FHIRUtil.extractResourceType(observation) shouldBe "Observation"
@@ -394,15 +437,20 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
     it should "map test data and write it to FHIR repo successfully" in {
       assume(fhirServerIsAvailable)
       fhirMappingJobManager
-        .executeMappingJob(tasks = Seq(observationMappingTask), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
+        .executeMappingJob(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(observationMappingTask)), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
         .map(unit =>
           unit shouldBe()
         )
     }
 
   "Measurement mapping" should "should read data from SQL source and map it" in {
-    val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
-    fhirMappingJobManager.executeMappingTaskAndReturn(task = measurementMappingTask, sourceSettings = sqlSourceSettings) map { results =>
+    fhirMappingJobManager.executeMappingTaskAndReturn(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(measurementMappingTask)), sourceSettings = sqlSourceSettings) map { mappingResults =>
+      val results = mappingResults.map(r => {
+        r.mappedResource shouldBe defined
+        val resource = r.mappedResource.get.parseJson
+        resource shouldBe a[Resource]
+        resource
+      })
       results.size shouldBe 1
       val observation = results.head
       FHIRUtil.extractResourceType(observation) shouldBe "Observation"
@@ -415,15 +463,20 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
   it should "map test data and write it to FHIR repo successfully" in {
     assume(fhirServerIsAvailable)
     fhirMappingJobManager
-      .executeMappingJob(tasks = Seq(measurementMappingTask), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
+      .executeMappingJob(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(measurementMappingTask)), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
       .map(unit =>
         unit shouldBe()
       )
   }
 
   "Drug exposure mapping" should "should read data from SQL source and map it" in {
-    val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
-    fhirMappingJobManager.executeMappingTaskAndReturn(task = drugExposureMappingTask, sourceSettings = sqlSourceSettings) map { results =>
+    fhirMappingJobManager.executeMappingTaskAndReturn(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(drugExposureMappingTask)), sourceSettings = sqlSourceSettings) map { mappingResults =>
+      val results = mappingResults.map(r => {
+        r.mappedResource shouldBe defined
+        val resource = r.mappedResource.get.parseJson
+        resource shouldBe a[Resource]
+        resource
+      })
       results.size shouldBe 15
       val drugExposure = results.head
       FHIRUtil.extractResourceType(drugExposure) shouldBe "MedicationStatement"
@@ -435,15 +488,20 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
   it should "map test data and write it to FHIR repo successfully" in {
     assume(fhirServerIsAvailable)
     fhirMappingJobManager
-      .executeMappingJob(tasks = Seq(drugExposureMappingTask), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
+      .executeMappingJob(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(drugExposureMappingTask)), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
       .map(unit =>
         unit shouldBe()
       )
   }
 
   "Death mapping" should "should read data from SQL source and map it" in {
-    val fhirMappingJobManager = new FhirMappingJobManager(mappingRepository, contextLoader, schemaRepository, sparkSession, mappingErrorHandling)
-    fhirMappingJobManager.executeMappingTaskAndReturn(task = deathMappingTask, sourceSettings = sqlSourceSettings) map { results =>
+    fhirMappingJobManager.executeMappingTaskAndReturn(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(deathMappingTask)), sourceSettings = sqlSourceSettings) map { mappingResults =>
+      val results = mappingResults.map(r => {
+        r.mappedResource shouldBe defined
+        val resource = r.mappedResource.get.parseJson
+        resource shouldBe a[Resource]
+        resource
+      })
       results.size shouldBe 5
       val death = results.head
       FHIRUtil.extractResourceType(death) shouldBe "AdverseEvent"
@@ -455,7 +513,7 @@ class OmopTest extends TestSpec with BeforeAndAfterAll  {
   it should "map test data and write it to FHIR repo successfully" in {
     assume(fhirServerIsAvailable)
     fhirMappingJobManager
-      .executeMappingJob(tasks = Seq(deathMappingTask), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
+      .executeMappingJob(mappingJobExecution = FhirMappingJobExecution(mappingTasks = Seq(deathMappingTask)), sourceSettings = sqlSourceSettings, sinkSettings = fhirSinkSetting)
       .map(unit =>
         unit shouldBe()
       )

@@ -1,6 +1,7 @@
 {
+  "id": "provider-mapping",
   "url": "https://aiccelerate.eu/fhir/mappings/omop/provider-mapping",
-  "name": "person-mapping",
+  "name": "provider-mapping",
   "title": "Mapping of omop provider to AIC-Practitioner FHIR profile",
   "source": [{
     "alias": "source",
